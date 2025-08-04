@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Weather + Unsplash Assignment</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <h1>Weather + Background</h1>
+    <p class="small">
+      Enter a city or use your location. Background updates based on the weather condition.
+    </p>
+
+    <form id="search-form">
+      <input type="text" id="city-input" placeholder="e.g., Barrie or Tokyo" />
+      <button type="submit">Get Weather</button>
+      <button type="button" id="geo-btn">Use My Location</button>
+    </form>
+
+    <div id="error" class="hidden"></div>
+
+    <div id="weather-card" class="hidden">
+      <div class="top">
+        <div>
+          <div id="location" class="location-name"></div>
+          <div id="desc" class="description"></div>
+        </div>
+        <div id="temp" class="temperature"></div>
+      </div>
+      <div class="details">
+        <div><strong>Feels like:</strong> <span id="feels"></span></div>
+        <div><strong>Humidity:</strong> <span id="humidity"></span>%</div>
+        <div><strong>Wind:</strong> <span id="wind"></span> km/h</div>
+        <div><strong>Sunrise:</strong> <span id="sunrise"></span></div>
+        <div><strong>Sunset:</strong> <span id="sunset"></span></div>
+        <div><strong>Condition:</strong> <span id="mainCond"></span></div>
+      </div>
+    </div>
+
+    <div id="docs">
+      <p class="small">
+        Docs used: <a href="https://openweathermap.org/current" target="_blank">OpenWeatherMap</a>,
+        <a href="https://unsplash.com/documentation" target="_blank">Unsplash</a>.
+      </p>
+      <p class="small">
+        Note: Couldnt figure out safety...for keys
+      </p>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

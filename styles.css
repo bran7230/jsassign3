@@ -1,0 +1,94 @@
+/* styles.css */
+* { box-sizing:border-box; }
+body {
+  margin: 0;
+  font-family: system-ui,sans-serif;
+  background: #1e2a3a;
+  color: #edf2f7;
+  min-height: 100vh;
+  background-size: cover;
+  background-position: center;
+}
+#app {
+  max-width: 700px;
+  margin: 2rem auto;
+  padding: 1.25rem 1.5rem;
+  background: rgba(0,0,0,0.45);
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+}
+h1 {
+  margin-top: 0;
+}
+.small {
+  font-size: 0.85rem;
+  margin: 0.25rem 0 1rem;
+  color: #c0cbd9;
+}
+form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+input {
+  flex: 1;
+  padding: 0.55rem 0.75rem;
+  border-radius: 6px;
+  border: none;
+  background: #2a3750;
+  color: #fff;
+  font-size: 1rem;
+}
+button {
+  padding: 0.55rem 0.9rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #6366f1;
+  color: #fff;
+  font-weight: 600;
+}
+button:hover {
+  filter: brightness(1.08);
+}
+.hidden {
+  display: none;
+}
+#weather-card {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+}
+.top {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.location-name {
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+.temperature {
+  font-size: 2.2rem;
+  font-weight: 700;
+}
+.description {
+  text-transform: capitalize;
+  margin-top: 4px;
+  font-size: 0.9rem;
+}
+.details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(120px,1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+#docs {
+  margin-top: 1.25rem;
+}
+a { color: #7dd3fc; text-decoration: none; }
+a:hover { text-decoration: underline; }
