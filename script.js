@@ -1,7 +1,8 @@
+// script.js - Open-Meteo + Unsplash background version
 
-const OPENWEATHER_KEY = "de7027250bf7787a8a267d91d2619295";
-
-const UNSPLASH_KEY = "J_0J7VT2_Xl1uGHA7SbtLYWRyuE_aIGronoJdUp46W8";
+// === CONFIG ===
+// Unsplash Access Key (Client ID). Do NOT use the secret key.
+const UNSPLASH_ACCESS_KEY = "J_0J7VT2_Xl1uGHA7SbtLYWRyuE_aIGronoJdUp46W8"; // replace if needed
 
 // === DOM ELEMENTS ===
 const form = document.getElementById("search-form");
@@ -9,167 +10,259 @@ const cityInput = document.getElementById("city-input");
 const geoBtn = document.getElementById("geo-btn");
 const weatherCard = document.getElementById("weather-card");
 const errorDiv = document.getElementById("error");
+
 const locationEl = document.getElementById("location");
 const descEl = document.getElementById("desc");
 const tempEl = document.getElementById("temp");
-const feelsEl = document.getElementById("feels");
+const feelsEl = document.getElementById("feels"); // Open-Meteo doesn't give feels-like; will show "N/A"
 const humidityEl = document.getElementById("humidity");
 const windEl = document.getElementById("wind");
 const sunriseEl = document.getElementById("sunrise");
 const sunsetEl = document.getElementById("sunset");
 const mainCondEl = document.getElementById("mainCond");
 
-// === HELPERS ===
-function unixToLocal(u) {
-  const d = new Date(u * 1000);
-  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-}
+// === WEATHER CODE MAPPING (from Open-Meteo) ===
+const weatherCodeMap = {
+  0: "Clear sky",
+  1: "Mainly clear",
+  2: "Partly cloudy",
+  3: "Overcast",
+  45: "Fog",
+  48: "Depositing rime fog",
+  51: "Light drizzle",
+  53: "Moderate drizzle",
+  55: "Dense drizzle",
+  56: "Light freezing drizzle",
+  57: "Dense freezing drizzle",
+  61: "Slight rain",
+  63: "Moderate rain",
+  65: "Heavy rain",
+  66: "Light freezing rain",
+  67: "Heavy freezing rain",
+  71: "Slight snow",
+  73: "Moderate snow",
+  75: "Heavy snow",
+  77: "Snow grains",
+  80: "Rain showers",
+  81: "Moderate rain showers",
+  82: "Violent rain showers",
+  85: "Slight snow showers",
+  86: "Heavy snow showers",
+  95: "Thunderstorm",
+  96: "Thunderstorm with slight hail",
+  99: "Thunderstorm with heavy hail",
+};
 
+// === UTILS ===
 function showError(msg) {
-  errorDiv.textContent = msg;
-  errorDiv.classList.remove("hidden");
+  if (errorDiv) {
+    errorDiv.textContent = msg;
+    errorDiv.classList.remove("hidden");
+  }
 }
 
 function clearError() {
-  errorDiv.textContent = "";
-  errorDiv.classList.add("hidden");
+  if (errorDiv) {
+    errorDiv.textContent = "";
+    errorDiv.classList.add("hidden");
+  }
+}
+
+function isoToLocalTime(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return iso;
+  }
+}
+
+function updateURLParam(city) {
+  const url = new URL(window.location);
+  if (city) url.searchParams.set("city", city);
+  else url.searchParams.delete("city");
+  window.history.replaceState({}, "", url.toString());
 }
 
 // === FETCH FUNCTIONS ===
-async function fetchWeatherByCity(city) {
-  if (!OPENWEATHER_KEY || OPENWEATHER_KEY.startsWith("REPLACE")) {
-    throw new Error("OpenWeatherMap key is missing or placeholder.");
-  }
-  const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(
+
+// 1. Geocode city name to lat/lon using Open-Meteo geocoding
+async function geocodeCity(city) {
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
     city
-  )}&units=metric&appid=${encodeURIComponent(OPENWEATHER_KEY)}`;
-  const r = await fetch(url);
-  if (!r.ok) {
-    const body = await r.json().catch(() => ({}));
-    throw new Error(body.message || "Failed to fetch weather.");
-  }
-  return r.json();
+  )}&count=1`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error("Geocoding failed");
+  const data = await resp.json();
+  if (!data.results || data.results.length === 0) throw new Error("City not found");
+  const place = data.results[0];
+  return {
+    latitude: place.latitude,
+    longitude: place.longitude,
+    name: `${place.name}${place.country ? ", " + place.country : ""}`,
+  };
 }
 
-async function fetchWeatherByCoords(lat, lon) {
-  if (!OPENWEATHER_KEY || OPENWEATHER_KEY.startsWith("REPLACE")) {
-    throw new Error("OpenWeatherMap key is missing or placeholder.");
+// 2. Fetch current weather + sunrise/sunset + humidity
+async function fetchWeatherOpenMeteo(lat, lon) {
+  // Request current weather, daily sunrise/sunset, and hourly humidity
+  const url = new URL("https://api.open-meteo.com/v1/forecast");
+  url.searchParams.set("latitude", lat);
+  url.searchParams.set("longitude", lon);
+  url.searchParams.set("current_weather", "true");
+  url.searchParams.set("timezone", "auto");
+  url.searchParams.set("daily", "sunrise,sunset");
+  url.searchParams.set("hourly", "relativehumidity_2m");
+
+  const resp = await fetch(url.toString());
+  if (!resp.ok) throw new Error("Weather fetch failed");
+  const data = await resp.json();
+  if (!data.current_weather) throw new Error("Malformed weather response");
+
+  // Extract current weather
+  const cw = data.current_weather; // includes temperature, windspeed, weathercode, time
+
+  // Get today's sunrise/sunset (first element)
+  const sunrise = (data.daily?.sunrise || [])[0] || "";
+  const sunset = (data.daily?.sunset || [])[0] || "";
+
+  // Determine humidity: match current time in hourly.time array
+  let humidity = "N/A";
+  if (data.hourly && data.hourly.time && data.hourly.relativehumidity_2m) {
+    const timeIndex = data.hourly.time.findIndex((t) => t === cw.time);
+    if (timeIndex !== -1) {
+      humidity = data.hourly.relativehumidity_2m[timeIndex];
+    } else {
+      // fallback: find closest earlier hour
+      const times = data.hourly.time.map((t) => new Date(t));
+      const curr = new Date(cw.time);
+      let closestIdx = -1;
+      for (let i = 0; i < times.length; i++) {
+        if (times[i] <= curr) closestIdx = i;
+        else break;
+      }
+      if (closestIdx !== -1) {
+        humidity = data.hourly.relativehumidity_2m[closestIdx];
+      }
+    }
   }
-  const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${encodeURIComponent(
-    OPENWEATHER_KEY
-  )}`;
-  const r = await fetch(url);
-  if (!r.ok) {
-    const body = await r.json().catch(() => ({}));
-    throw new Error(body.message || "Failed to fetch weather.");
-  }
-  return r.json();
+
+  return {
+    temperature: cw.temperature,
+    windspeed: cw.windspeed,
+    weathercode: cw.weathercode,
+    time: cw.time,
+    humidity,
+    sunrise,
+    sunset,
+  };
 }
 
-async function fetchBackground(query) {
-  if (!UNSPLASH_KEY || UNSPLASH_KEY.startsWith("REPLACE")) {
-    console.warn("Unsplash key missing or placeholder.");
-    return null;
-  }
+// 3. Unsplash random photo for background
+async function fetchUnsplashBackground(query) {
+  if (!UNSPLASH_ACCESS_KEY) return null;
   const url = `https://api.unsplash.com/photos/random?query=${encodeURIComponent(
     query
   )}&orientation=landscape&content_filter=high`;
-  const r = await fetch(url, {
+  const resp = await fetch(url, {
     headers: {
-      Authorization: `Client-ID ${UNSPLASH_KEY}`,
+      Authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}`,
     },
   });
-  if (!r.ok) {
-    console.warn("Unsplash failed:", r.status, await r.text());
+  if (!resp.ok) {
+    console.warn("Unsplash failed:", resp.status, await resp.text());
     return null;
   }
-  return r.json();
+  return resp.json();
 }
 
-// === MAIN RENDER ===
+// === MAIN RENDERING ===
 async function showWeather(input) {
   try {
     clearError();
-    weatherCard.classList.add("hidden");
-    tempEl.textContent = "Loading...";
+    if (weatherCard) weatherCard.classList.add("hidden");
+    tempEl && (tempEl.textContent = "Loading...");
 
-    let data;
+    let locationName = "";
+    let weatherData;
+
     if (typeof input === "string") {
-      data = await fetchWeatherByCity(input);
+      // city name
+      const geo = await geocodeCity(input);
+      locationName = geo.name;
+      weatherData = await fetchWeatherOpenMeteo(geo.latitude, geo.longitude);
+      updateURLParam(input);
     } else if (input && input.latitude != null && input.longitude != null) {
-      data = await fetchWeatherByCoords(input.latitude, input.longitude);
+      // coords
+      locationName = "Your Location";
+      weatherData = await fetchWeatherOpenMeteo(input.latitude, input.longitude);
+      updateURLParam("");
     } else {
-      throw new Error("Invalid input for weather.");
+      throw new Error("Invalid input for fetching weather");
     }
 
-    const cityName = `${data.name}, ${data.sys?.country || ""}`.trim();
-    const temp = Math.round(data.main.temp);
-    const feels = Math.round(data.main.feels_like);
-    const description = data.weather?.[0]?.description || "N/A";
-    const mainCond = data.weather?.[0]?.main || "";
-    const humidity = data.main.humidity;
-    const windKmh = (data.wind.speed * 3.6).toFixed(1);
-    const sunrise = unixToLocal(data.sys.sunrise);
-    const sunset = unixToLocal(data.sys.sunset);
+    // Populate fields
+    const { temperature, windspeed, weathercode, humidity, sunrise, sunset } = weatherData;
+    const mainCondition = weatherCodeMap[weathercode] || "Unknown";
 
-    locationEl.textContent = cityName;
-    descEl.textContent = description;
-    tempEl.textContent = `${temp}°C`;
-    feelsEl.textContent = `${feels}°C`;
-    humidityEl.textContent = humidity;
-    windEl.textContent = windKmh;
-    sunriseEl.textContent = sunrise;
-    sunsetEl.textContent = sunset;
-    mainCondEl.textContent = mainCond;
+    locationEl && (locationEl.textContent = locationName);
+    descEl && (descEl.textContent = mainCondition.toLowerCase());
+    tempEl && (tempEl.textContent = `${Math.round(temperature)}°C`);
+    feelsEl && (feelsEl.textContent = "N/A"); // Open-Meteo doesn't provide feels-like
+    humidityEl && (humidityEl.textContent = humidity !== "N/A" ? `${humidity}%` : "N/A");
+    windEl && (windEl.textContent = `${Math.round(windspeed)} km/h`);
+    sunriseEl && (sunriseEl.textContent = isoToLocalTime(sunrise));
+    sunsetEl && (sunsetEl.textContent = isoToLocalTime(sunset));
+    mainCondEl && (mainCondEl.textContent = mainCondition);
 
-    weatherCard.classList.remove("hidden");
+    weatherCard && weatherCard.classList.remove("hidden");
 
-    try {
-      localStorage.setItem("lastCity", typeof input === "string" ? input : cityName);
-    } catch {}
+    // Persist last city if string
+    if (typeof input === "string") {
+      try {
+        localStorage.setItem("lastCity", input);
+      } catch {}
+    }
 
-    const bg = await fetchBackground(mainCond || "nature");
+    // Fetch and set background
+    const bgQuery = mainCondition.split(" ")[0] || "weather";
+    const bg = await fetchUnsplashBackground(bgQuery);
     if (bg && (bg.urls?.regular || bg.urls?.full)) {
-      document.body.style.backgroundImage = `url(${
-        bg.urls.regular || bg.urls.full
-      })`;
+      document.body.style.backgroundImage = `url(${bg.urls.regular || bg.urls.full})`;
     }
   } catch (err) {
     console.error(err);
-    showError(err.message || "Something went wrong.");
+    showError(err.message || "Failed to load weather.");
   }
 }
 
-// === EVENTS ===
-form.addEventListener("submit", function (e) {
-  e.preventDefault();
-  const city = cityInput.value.trim();
-  if (city) {
-    showWeather(city);
-    // update query string for shareable link
-    const url = new URL(window.location);
-    url.searchParams.set("city", city);
-    window.history.replaceState({}, "", url.toString());
-  }
-});
+// === EVENT LISTENERS ===
+form &&
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    const city = cityInput.value.trim();
+    if (city) {
+      showWeather(city);
+    }
+  });
 
-geoBtn.addEventListener("click", function () {
-  if (!navigator.geolocation) {
-    showError("Geolocation not supported.");
-    return;
-  }
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      showWeather({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-      const url = new URL(window.location);
-      url.searchParams.delete("city");
-      window.history.replaceState({}, "", url.toString());
-    },
-    (err) => showError("Geolocation error: " + err.message)
-  );
-});
+geoBtn &&
+  geoBtn.addEventListener("click", function () {
+    if (!navigator.geolocation) {
+      showError("Geolocation not supported.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        showWeather({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+      },
+      (err) => {
+        showError("Geolocation failed: " + err.message);
+      }
+    );
+  });
 
-// === ON LOAD ===
+// === INITIAL LOAD ===
 window.addEventListener("DOMContentLoaded", function () {
   const params = new URLSearchParams(window.location.search);
   const cityParam = params.get("city");
