@@ -1,8 +1,5 @@
-// script.js - Open-Meteo + Unsplash background version
 
-// === CONFIG ===
-// Unsplash Access Key (Client ID). Do NOT use the secret key.
-const UNSPLASH_ACCESS_KEY = "J_0J7VT2_Xl1uGHA7SbtLYWRyuE_aIGronoJdUp46W8"; // replace if needed
+const UNSPLASH_ACCESS_KEY = "J_0J7VT2_Xl1uGHA7SbtLYWRyuE_aIGronoJdUp46W8"; // Couldnt figure out how to securely load from pages...
 
 // === DOM ELEMENTS ===
 const form = document.getElementById("search-form");
@@ -86,7 +83,7 @@ function updateURLParam(city) {
 
 // === FETCH FUNCTIONS ===
 
-// 1. Geocode city name to lat/lon using Open-Meteo geocoding
+// Geocode city name to lat/lon using Open-Meteo geocoding
 async function geocodeCity(city) {
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
     city
@@ -103,7 +100,7 @@ async function geocodeCity(city) {
   };
 }
 
-// 2. Fetch current weather + sunrise/sunset + humidity
+// Fetch current weather + sunrise/sunset + humidity
 async function fetchWeatherOpenMeteo(lat, lon) {
   // Request current weather, daily sunrise/sunset, and hourly humidity
   const url = new URL("https://api.open-meteo.com/v1/forecast");
@@ -158,7 +155,7 @@ async function fetchWeatherOpenMeteo(lat, lon) {
   };
 }
 
-// 3. Unsplash random photo for background
+// Unsplash random photo for background
 async function fetchUnsplashBackground(query) {
   if (!UNSPLASH_ACCESS_KEY) return null;
   const url = `https://api.unsplash.com/photos/random?query=${encodeURIComponent(
